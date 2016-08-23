@@ -29,6 +29,9 @@ int posix_fcntl0(int __fd, int __cmd);
 int posix_fcntl1(int __fd, int __cmd, int arg);
 int posix_close(int __fd);
 
+int posix_feof(FILE* __file);
+int posix_ferror(FILE* __file);
+void posix_clearerr(FILE* __file);
 FILE* posix_fopen(const char* __fname, const char* __modes);
 size_t posix_fread(void* __ptr, size_t __sz, size_t __n, FILE* __stream);
 size_t posix_fwrite(const void* __ptr, size_t __sz, size_t __n, FILE* __stream);

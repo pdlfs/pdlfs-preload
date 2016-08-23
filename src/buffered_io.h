@@ -16,6 +16,9 @@
 extern "C" {
 #endif
 
+extern int pdlfs_feof(FILE* __stream);
+extern int pdlfs_ferror(FILE* __stream);
+extern void pdlfs_clearerr(FILE* __stream);
 FILE* pdlfs_fopen(const char* __fname, const char* __modes);
 size_t pdlfs_fread(void* __ptr, size_t __sz, size_t __n, FILE* __stream);
 size_t pdlfs_fwrite(const void* __ptr, size_t __sz, size_t __n, FILE* __stream);

@@ -62,7 +62,6 @@ int pdlfs_open(const char* path, int oflags, mode_t mode, struct stat* buf) {
   }
 
   assert(path != NULL);
-  assert(strlen(path) != 0);
   assert(path[0] == '/');
 
   std::string p = api_ctx->pdlfs_root;

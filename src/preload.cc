@@ -61,7 +61,6 @@ struct Context {
   }
 
   // File descriptor 0, 1, 2 are reserved for stdin, stdout, and stderr
-
   Context() : fd(2) {
     const char* env = getenv("PDLFS_ROOT");
     if (env == NULL) {
@@ -389,6 +388,39 @@ int fclose(FILE* file) {
   }
 
   return posix_fclose(file);
+}
+
+void clearerr(FILE* file) {
+  FileType type;
+  if (__check_file(file, &type)) {
+    if (type == kPDLFS) {
+      pdlfs_clearerr(file);
+    }
+  }
+
+  posix_clearerr(file);
+}
+
+int ferror(FILE* file) {
+  FileType type;
+  if (__check_file(file, &type)) {
+    if (type == kPDLFS) {
+      return pdlfs_ferror(file);
+    }
+  }
+
+  return posix_ferror(file);
+}
+
+int feof(FILE* file) {
+  FileType type;
+  if (__check_file(file, &type)) {
+    if (type == kPDLFS) {
+      return pdlfs_feof(file);
+    }
+  }
+
+  return posix_feof(file);
 }
 
 }  // extern C

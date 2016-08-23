@@ -46,6 +46,9 @@ struct PosixAPI {
     LoadSym("ftell", &ftell);
     LoadSym("fflush", &fflush);
     LoadSym("fclose", &fclose);
+    LoadSym("clearerr", &clearerr);
+    LoadSym("ferror", &ferror);
+    LoadSym("feof", &feof);
   }
 
   int (*mkdir)(const char*, mode_t);
@@ -65,6 +68,9 @@ struct PosixAPI {
   long int (*ftell)(FILE*);
   int (*fflush)(FILE*);
   int (*fclose)(FILE*);
+  void (*clearerr)(FILE*);
+  int (*ferror)(FILE*);
+  int (*feof)(FILE*);
 };
 }  // namespace
 
@@ -220,6 +226,30 @@ int posix_fclose(FILE* stream) {
   }
 
   return posix_api->fclose(stream);
+}
+
+void posix_clearerr(FILE* stream) {
+  if (posix_api == NULL) {
+    pthread_once(&once, &__init_posix_api);
+  }
+
+  return posix_api->clearerr(stream);
+}
+
+int posix_ferror(FILE* stream) {
+  if (posix_api == NULL) {
+    pthread_once(&once, &__init_posix_api);
+  }
+
+  return posix_api->ferror(stream);
+}
+
+int posix_feof(FILE* stream) {
+  if (posix_api == NULL) {
+    pthread_once(&once, &__init_posix_api);
+  }
+
+  return posix_api->feof(stream);
 }
 
 }  // extern C

@@ -25,14 +25,11 @@ class BufferedFile {
 
   ~BufferedFile() {}
 
-  off_t size() const { return size_; }
-
-  off_t off() const { return off_; }
+  void Clearerr() { err_ = eof_ = false; }
 
   void Seek(off_t off) {
-    if (!err_) {
-      off_ = off;
-    }
+    off_ = off;
+    eof_ = false;
   }
 
   // Return the number of bytes read which is less then nbytes
@@ -114,7 +111,6 @@ class BufferedFile {
     return r == 0 ? 0 : EOF;
   }
 
- private:
   enum { kMaxBufSize = 4096 };
   bool err_;
   bool eof_;
@@ -199,9 +195,9 @@ int pdlfs_fseek(FILE* stream, long int off, int whence) {
   } else {
     BufferedFile* file = buffered_file(stream);
     if (whence == SEEK_CUR) {
-      file->Seek(file->off() + off);
+      file->Seek(file->off_ + off);
     } else if (whence == SEEK_END) {
-      file->Seek(file->size() + off);
+      file->Seek(file->size_ + off);
     } else {
       file->Seek(off);
     }
@@ -215,7 +211,7 @@ long int pdlfs_ftell(FILE* stream) {
     return -1;
   } else {
     BufferedFile* file = buffered_file(stream);
-    return file->off();
+    return file->off_;
   }
 }
 
@@ -240,6 +236,33 @@ int pdlfs_fclose(FILE* stream) {
     delete file;
     return 0;
   }
+}
+
+void pdlfs_clearerr(FILE* stream) {
+  if (stream != NULL) {
+    BufferedFile* file = buffered_file(stream);
+    file->Clearerr();
+  }
+}
+
+int pdlfs_ferror(FILE* stream) {
+  if (stream != NULL) {
+    BufferedFile* file = buffered_file(stream);
+    if (file->err_) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int pdlfs_feof(FILE* stream) {
+  if (stream != NULL) {
+    BufferedFile* file = buffered_file(stream);
+    if (file->eof_) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 }  // extern C

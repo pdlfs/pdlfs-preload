@@ -21,16 +21,17 @@
 namespace {
 
 struct Context {
+  static const int kDirMode = S_IRWXU | S_IRWXG | S_IRWXO;
   std::string pdlfs_root;
 
   void Init() {
     std::string path = pdlfs_root;
-    posix_mkdir(path.c_str(), 0777);
-    path += "/.dummy";
-    posix_mkdir(path.c_str(), 0777);
+    posix_mkdir(path.c_str(), kDirMode);
+    path += "/.pdlfs";  // XXX: marker directory
+    posix_mkdir(path.c_str(), kDirMode);
   }
 
-  Context() {
+  explicit Context() {
     const char* env = getenv("PDLFS_ROOT");
     if (env == NULL) env = DEFAULT_PDLFS_ROOT;
     std::string root = env;
@@ -87,7 +88,6 @@ int pdlfs_creat(const char* path, mode_t mode) {
   }
 
   assert(path != NULL);
-  assert(strlen(path) != 0);
   assert(path[0] == '/');
 
   std::string p = api_ctx->pdlfs_root;
@@ -113,8 +113,8 @@ ssize_t pdlfs_write(int fd, const void* buf, size_t sz) {
 }
 
 int pdlfs_close(int fd) {
-  int r = posix_close(fd);
-  return r;
+  posix_close(fd);
+  return 0;
 }
 
 }  // extern C

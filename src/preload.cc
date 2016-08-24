@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <map>
 #include <string>
 
@@ -158,6 +159,34 @@ static bool __check_file(FILE* f, FileType* type, bool remove = false) {
 
 extern "C" {
 
+int mkdir(const char* path, mode_t mode) __THROW {
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
+  }
+  if (path == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+  std::string tmp;
+  if (kRedirectCurDir && path[0] != '/') {
+    tmp = fs_ctx->pdlfs_root + "/";
+    tmp += path;
+    path = tmp.c_str();
+  }
+
+  int r;
+  ParsedPath parsed;
+  bool ok = fs_ctx->ParsePath(path, &parsed);
+  if (!ok || parsed.type == kPOSIX) {
+    parsed.type = kPOSIX;
+    r = posix_mkdir(ok ? parsed.path : path, mode);
+  } else {
+    r = pdlfs_mkdir(parsed.path, mode);
+  }
+
+  return r;
+}
+
 int open(const char* path, int oflags, ...) {
   if (fs_ctx == NULL) {
     pthread_once(&once, &__init_ctx);
@@ -225,6 +254,18 @@ int open(const char* path, int oflags, ...) {
 
 int creat(const char* path, mode_t mode) {
   return open(path, O_CREAT | O_WRONLY | O_TRUNC, mode);
+}
+
+int fstat(int fd, struct stat* buf) __THROW {
+  FileType type;
+  int __fd;
+  if (__check_file_by_fd(fd, &type, &__fd)) {
+    if (type == kPDLFS) {
+      return pdlfs_fstat(__fd, buf);
+    }
+  }
+
+  return posix_fstat(fd, buf);
 }
 
 ssize_t pread(int fd, void* buf, size_t sz, off_t off) {

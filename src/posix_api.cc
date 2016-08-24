@@ -37,6 +37,7 @@ struct PosixAPI {
     LoadSym("pwrite", &pwrite);
     LoadSym("write", &write);
     LoadSym("__fxstat", &fxstat);
+    LoadSym("ftruncate", &ftruncate);
     LoadSym("fcntl", &fcntl);
     LoadSym("close", &close);
     LoadSym("fopen", &fopen);
@@ -59,6 +60,7 @@ struct PosixAPI {
   ssize_t (*pwrite)(int, const void*, size_t, off_t);
   ssize_t (*write)(int, const void*, size_t);
   int (*fxstat)(int, int, struct stat*);
+  int (*ftruncate)(int, off_t);
   int (*fcntl)(int, int, ...);
   int (*close)(int);
   FILE* (*fopen)(const char*, const char*);
@@ -146,6 +148,14 @@ int posix_fstat(int fd, struct stat* buf) {
   }
 
   return posix_api->fxstat(_STAT_VER, fd, buf);
+}
+
+int posix_ftruncate(int fd, off_t length) {
+  if (posix_api == NULL) {
+    pthread_once(&once, &__init_posix_api);
+  }
+
+  return posix_api->ftruncate(fd, length);
 }
 
 int posix_fcntl0(int fd, int cmd) {

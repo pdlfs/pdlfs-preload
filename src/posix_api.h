@@ -25,6 +25,7 @@ ssize_t posix_read(int __fd, void* __buf, size_t __sz);
 ssize_t posix_pwrite(int __fd, const void* __buf, size_t __sz, off_t __off);
 ssize_t posix_write(int __fd, const void* __buf, size_t __sz);
 int posix_fstat(int __fd, struct stat* __buf);
+int posix_ftruncate(int __fd, off_t __length);
 int posix_fcntl0(int __fd, int __cmd);
 int posix_fcntl1(int __fd, int __cmd, int arg);
 int posix_close(int __fd);

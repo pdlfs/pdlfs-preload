@@ -16,7 +16,10 @@
 extern "C" {
 #endif
 
+int pdlfs_mkdir(const char* __path, mode_t __mode);
 int pdlfs_open(const char* __path, int __oflags, mode_t __mode, struct stat*);
+int pdlfs_fstat(int __fd, struct stat*);
+int pdlfs_ftruncate(int __fd, off_t __length);
 ssize_t pdlfs_pread(int __fd, void* __buf, size_t __sz, off_t __off);
 ssize_t pdlfs_read(int __fd, void* __buf, size_t __sz);
 ssize_t pdlfs_pwrite(int __fd, const void* __buf, size_t __sz, off_t __off);

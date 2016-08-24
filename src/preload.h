@@ -22,8 +22,10 @@ typedef struct _IO_FILE FILE;
 extern "C" {
 #endif
 
+extern int mkdir(const char* __path, mode_t __mode) __THROW;
 extern int open(const char* __path, int __oflags, ...);
 extern int creat(const char* __path, mode_t __mode);
+extern int fstat(int __fd, struct stat* __statbuf) __THROW;
 extern ssize_t pread(int __fd, void* __buf, size_t __sz, off_t __off);
 extern ssize_t read(int __fd, void* __buf, size_t __sz);
 extern ssize_t pwrite(int __fd, const void* __buf, size_t __sz, off_t __off);

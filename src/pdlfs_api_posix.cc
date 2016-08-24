@@ -56,6 +56,20 @@ static void InitContext() {
 
 extern "C" {
 
+int pdlfs_mkdir(const char* path, mode_t mode) {
+  if (api_ctx == NULL) {
+    pthread_once(&once, &InitContext);
+  }
+
+  assert(path != NULL);
+  assert(path[0] == '/');
+
+  std::string p = api_ctx->pdlfs_root;
+  p += path;
+
+  return posix_mkdir(p.c_str(), mode);
+}
+
 int pdlfs_open(const char* path, int oflags, mode_t mode, struct stat* buf) {
   if (api_ctx == NULL) {
     pthread_once(&once, &InitContext);
@@ -110,6 +124,8 @@ ssize_t pdlfs_pwrite(int fd, const void* buf, size_t sz, off_t off) {
 ssize_t pdlfs_write(int fd, const void* buf, size_t sz) {
   return posix_write(fd, buf, sz);
 }
+
+int pdlfs_fstat(int fd, struct stat* buf) { return posix_fstat(fd, buf); }
 
 int pdlfs_close(int fd) {
   posix_close(fd);

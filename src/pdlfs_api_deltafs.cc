@@ -12,8 +12,14 @@
 
 extern "C" {
 
+int pdlfs_mkdir(const char* p, mode_t m) { return deltafs_mkdir(p, m); }
+
 int pdlfs_open(const char* p, int f, mode_t m, struct stat* statbuf) {
   return deltafs_open(p, f, m, statbuf);
+}
+
+int pdlfs_fstat(int fd, struct stat* statbuf) {
+  return deltafs_fstat(fd, statbuf);
 }
 
 ssize_t pdlfs_pread(int fd, void* buf, size_t sz, off_t off) {

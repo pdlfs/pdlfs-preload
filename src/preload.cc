@@ -401,7 +401,7 @@ void clearerr(FILE* file) {
   posix_clearerr(file);
 }
 
-int ferror(FILE* file) {
+int ferror(FILE* file) __THROW {
   FileType type;
   if (__check_file(file, &type)) {
     if (type == kPDLFS) {
@@ -412,7 +412,7 @@ int ferror(FILE* file) {
   return posix_ferror(file);
 }
 
-int feof(FILE* file) {
+int feof(FILE* file) __THROW {
   FileType type;
   if (__check_file(file, &type)) {
     if (type == kPDLFS) {

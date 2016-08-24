@@ -14,6 +14,9 @@
 #define DEFAULT_PDLFS_ROOT "/tmp/pdlfs"
 struct _IO_FILE;
 typedef struct _IO_FILE FILE;
+#ifndef __THROW
+#define __THROW
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,8 +30,8 @@ extern ssize_t pwrite(int __fd, const void* __buf, size_t __sz, off_t __off);
 extern ssize_t write(int __fd, const void* __buf, size_t __sz);
 extern int close(int __fd);
 
-extern int feof(FILE* __file);
-extern int ferror(FILE* __file);
+extern int feof(FILE* __file) __THROW;
+extern int ferror(FILE* __file) __THROW;
 extern void clearerr(FILE* __file);
 extern FILE* fopen(const char* __fname, const char* __modes);
 extern size_t fread(void* __ptr, size_t __sz, size_t __n, FILE* __file);

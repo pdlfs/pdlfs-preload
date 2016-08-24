@@ -69,6 +69,7 @@ static void __init_deltafs_api() {
   FLAGS_v = verbose;
   FLAGS_logtostderr = true;
   google::InitGoogleLogging("deltafs");
+  google::InstallFailureSignalHandler();
 #endif
   DeltafsAPI* api = new DeltafsAPI;
   deltafs_api = api;

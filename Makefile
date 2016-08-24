@@ -48,7 +48,7 @@ $(OUTDIR)/libpdlfs-preload-deltafs.so: DIRS $(OUTDIR)/src/pdlfs_api_deltafs.o $(
 	$(CXX) -pthread -shared $(OUTDIR)/src/pdlfs_api_deltafs.o $(OUTDIR)/src/deltafs_api.o -o $@ -lglog
 
 $(OUTDIR)/libpdlfs-preload-posix.so: DIRS $(OUTDIR)/src/pdlfs_api_posix.o
-	$(CXX) -pthread -shared $(OUTDIR)/src/pdlfs_api_posix.o -o $@
+	$(CXX) -pthread -shared $(OUTDIR)/src/pdlfs_api_posix.o -o $@ -lglog
 
 $(OUTDIR)/libpdlfs-preload.so: DIRS $(OUTDIR)/src/preload.o $(OUTDIR)/src/posix_api.o $(OUTDIR)/src/buffered_io.o
 	$(CXX) -pthread -shared $(OUTDIR)/src/preload.o $(OUTDIR)/src/posix_api.o $(OUTDIR)/src/buffered_io.o -o $@ -ldl

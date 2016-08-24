@@ -33,7 +33,10 @@ struct DeltafsAPI {
   }
 
   explicit DeltafsAPI() {
+    LoadSym("deltafs_mkdir", &deltafs_mkdir);
     LoadSym("deltafs_open", &deltafs_open);
+    LoadSym("deltafs_fstat", &deltafs_fstat);
+    LoadSym("deltafs_ftruncate", &deltafs_ftruncate);
     LoadSym("deltafs_pread", &deltafs_pread);
     LoadSym("deltafs_read", &deltafs_read);
     LoadSym("deltafs_pwrite", &deltafs_pwrite);
@@ -41,7 +44,10 @@ struct DeltafsAPI {
     LoadSym("deltafs_close", &deltafs_close);
   }
 
+  int (*deltafs_mkdir)(const char*, mode_t);
   int (*deltafs_open)(const char*, int, mode_t, struct stat*);
+  int (*deltafs_fstat)(int, struct stat*);
+  int (*deltafs_ftruncate)(int, off_t);
   ssize_t (*deltafs_pread)(int, void*, size_t, off_t);
   ssize_t (*deltafs_read)(int, void*, size_t);
   ssize_t (*deltafs_pwrite)(int, const void*, size_t, off_t);
@@ -70,12 +76,36 @@ static void __init_deltafs_api() {
 
 extern "C" {
 
+int deltafs_mkdir(const char* p, mode_t m) {
+  if (deltafs_api == NULL) {
+    pthread_once(&once, &__init_deltafs_api);
+  }
+
+  return deltafs_api->deltafs_mkdir(p, m);
+}
+
 int deltsfs_open(const char* p, int f, mode_t m, struct stat* statbuf) {
   if (deltafs_api == NULL) {
     pthread_once(&once, &__init_deltafs_api);
   }
 
   return deltafs_api->deltafs_open(p, f, m, statbuf);
+}
+
+int deltafs_fstat(int fd, struct stat* statbuf) {
+  if (deltafs_api == NULL) {
+    pthread_once(&once, &__init_deltafs_api);
+  }
+
+  return deltafs_api->deltafs_fstat(fd, statbuf);
+}
+
+int deltafs_ftruncate(int fd, off_t len) {
+  if (deltafs_api == NULL) {
+    pthread_once(&once, &__init_deltafs_api);
+  }
+
+  return deltafs_api->deltafs_ftruncate(fd, len);
 }
 
 ssize_t deltafs_pread(int fd, void* buf, size_t sz, off_t off) {

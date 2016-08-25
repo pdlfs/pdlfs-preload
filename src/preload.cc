@@ -20,6 +20,7 @@
 #include <string>
 
 #include "buffered_io.h"
+#include "monutil.h"
 #include "pdlfs-preload/pdlfs_api.h"
 #include "posix_api.h"
 #include "preload.h"
@@ -34,6 +35,9 @@ struct ParsedPath {
 };
 
 struct Context {
+  __MonStats posix_stats;
+  __MonStats pdlfs_stats;
+
   std::string pdlfs_root;
   std::map<int, int> fd_map;
   std::map<FILE*, FileType> files;
@@ -72,6 +76,8 @@ struct Context {
       root = DEFAULT_PDLFS_ROOT;
     }
     assert(root[0] == '/');
+    memset(&posix_stats, 0, sizeof(__MonStats));
+    memset(&pdlfs_stats, 0, sizeof(__MonStats));
     // Removing tailing slashes
     while (root.length() != 1 && root[root.size() - 1] == '/') {
       root.resize(root.size() - 1);
@@ -86,9 +92,24 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_once_t once = PTHREAD_ONCE_INIT;
 static Context* fs_ctx = NULL;
 
+static void PrintStats(const __MonStats& stats) {
+  fprintf(stderr, "num mkdir -> %d\n", (int)stats.mkdir);
+  fprintf(stderr, "num fopen -> %d\n", (int)stats.fopen);
+  fprintf(stderr, "num fread -> %d\n", (int)stats.fread);
+  fprintf(stderr, "num fwrite -> %d\n", (int)stats.fwrite);
+  fprintf(stderr, "num fflush -> %d\n", (int)stats.fflush);
+  fprintf(stderr, "num fclose -> %d\n", (int)stats.fclose);
+}
+
+static void __print_stats() {
+  fprintf(stderr, "== PDLFS stats\n");
+  PrintStats(fs_ctx->pdlfs_stats);
+}
+
 static void __init_ctx() {
   Context* ctx = new Context;
   fs_ctx = ctx;
+  atexit(&__print_stats);
 }
 
 static void MutexLock() {
@@ -107,10 +128,7 @@ static void MutexUnlock() {
 
 static bool __check_file_by_fd(int fd, FileType* type, int* __fd,
                                bool remove = false) {
-  if (fs_ctx == NULL) {
-    pthread_once(&once, &__init_ctx);
-  }
-
+  assert(fs_ctx != NULL);
   bool ok = true;
   int tmp;
   MutexLock();
@@ -131,15 +149,11 @@ static bool __check_file_by_fd(int fd, FileType* type, int* __fd,
     fs_ctx->fd_map.erase(it);
   }
   MutexUnlock();
-
   return ok;
 }
 
 static bool __check_file(FILE* f, FileType* type, bool remove = false) {
-  if (fs_ctx == NULL) {
-    pthread_once(&once, &__init_ctx);
-  }
-
+  assert(fs_ctx != NULL);
   bool ok = true;
   MutexLock();
   std::map<FILE*, FileType>::iterator it;
@@ -153,7 +167,6 @@ static bool __check_file(FILE* f, FileType* type, bool remove = false) {
     }
   }
   MutexUnlock();
-
   return ok;
 }
 
@@ -179,8 +192,10 @@ int mkdir(const char* path, mode_t mode) __THROW {
   bool ok = fs_ctx->ParsePath(path, &parsed);
   if (!ok || parsed.type == kPOSIX) {
     parsed.type = kPOSIX;
+    fs_ctx->posix_stats.mkdir++;
     r = posix_mkdir(ok ? parsed.path : path, mode);
   } else {
+    fs_ctx->pdlfs_stats.mkdir++;
     r = pdlfs_mkdir(parsed.path, mode);
   }
 
@@ -215,8 +230,10 @@ int open(const char* path, int oflags, ...) {
   bool ok = fs_ctx->ParsePath(path, &parsed);
   if (!ok || parsed.type == kPOSIX) {
     parsed.type = kPOSIX;
+    fs_ctx->posix_stats.open++;
     __fd = posix_open(ok ? parsed.path : path, oflags, mode);
   } else {
+    fs_ctx->pdlfs_stats.open++;
     __fd = pdlfs_open(parsed.path, oflags, mode, &buf);
   }
   if (__fd == -1) {
@@ -257,79 +274,100 @@ int creat(const char* path, mode_t mode) {
 }
 
 int fstat(int fd, struct stat* buf) __THROW {
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
+  }
   FileType type;
   int __fd;
-  if (__check_file_by_fd(fd, &type, &__fd)) {
-    if (type == kPDLFS) {
-      return pdlfs_fstat(__fd, buf);
-    }
+  if (__check_file_by_fd(fd, &type, &__fd) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.fstat++;
+    return pdlfs_fstat(__fd, buf);
+  } else {
+    fs_ctx->posix_stats.fstat++;
+    return posix_fstat(fd, buf);
   }
-
-  return posix_fstat(fd, buf);
 }
 
 ssize_t pread(int fd, void* buf, size_t sz, off_t off) {
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
+  }
   FileType type;
   int __fd;
-  if (__check_file_by_fd(fd, &type, &__fd)) {
-    if (type == kPDLFS) {
-      return pdlfs_pread(__fd, buf, sz, off);
-    }
+  if (__check_file_by_fd(fd, &type, &__fd) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.pread++;
+    return pdlfs_pread(__fd, buf, sz, off);
+  } else {
+    fs_ctx->posix_stats.pread++;
+    return posix_pread(fd, buf, sz, off);
   }
-
-  return posix_pread(fd, buf, sz, off);
 }
 
 ssize_t read(int fd, void* buf, size_t sz) {
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
+  }
   FileType type;
   int __fd;
-  if (__check_file_by_fd(fd, &type, &__fd)) {
-    if (type == kPDLFS) {
-      return pdlfs_read(__fd, buf, sz);
-    }
+  if (__check_file_by_fd(fd, &type, &__fd) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.read++;
+    return pdlfs_read(__fd, buf, sz);
+  } else {
+    fs_ctx->posix_stats.read++;
+    return posix_read(fd, buf, sz);
   }
-
-  return posix_read(fd, buf, sz);
 }
 
 ssize_t pwrite(int fd, const void* buf, size_t sz, off_t off) {
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
+  }
   FileType type;
   int __fd;
-  if (__check_file_by_fd(fd, &type, &__fd)) {
-    if (type == kPDLFS) {
-      return pdlfs_pwrite(__fd, buf, sz, off);
-    }
+  if (__check_file_by_fd(fd, &type, &__fd) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.pwrite++;
+    return pdlfs_pwrite(__fd, buf, sz, off);
+  } else {
+    fs_ctx->posix_stats.pwrite++;
+    return posix_pwrite(fd, buf, sz, off);
   }
-
-  return posix_pwrite(fd, buf, sz, off);
 }
 
 ssize_t write(int fd, const void* buf, size_t sz) {
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
+  }
   FileType type;
   int __fd;
-  if (__check_file_by_fd(fd, &type, &__fd)) {
-    if (type == kPDLFS) {
-      return pdlfs_write(__fd, buf, sz);
-    }
+  if (__check_file_by_fd(fd, &type, &__fd) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.write++;
+    return pdlfs_write(__fd, buf, sz);
+  } else {
+    fs_ctx->posix_stats.write++;
+    return posix_write(fd, buf, sz);
   }
-
-  return posix_write(fd, buf, sz);
 }
 
 int close(int fd) {
-  bool remove_fd = true;
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
+  }
+  const bool remove_fd = true;
   FileType type;
   int __fd;
-  if (__check_file_by_fd(fd, &type, &__fd, remove_fd)) {
-    if (type == kPDLFS) {
-      return pdlfs_close(__fd);
-    }
+  if (__check_file_by_fd(fd, &type, &__fd, remove_fd) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.close++;
+    return pdlfs_close(__fd);
+  } else {
+    fs_ctx->posix_stats.close++;
+    return posix_close(fd);
   }
-
-  return posix_close(fd);
 }
 
 FILE* fopen(const char* fname, const char* modes) {
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
+  }
   if (fs_ctx == NULL) {
     pthread_once(&once, &__init_ctx);
   }
@@ -345,11 +383,13 @@ FILE* fopen(const char* fname, const char* modes) {
   bool ok = fs_ctx->ParsePath(fname, &parsed);
   if (!ok || parsed.type == kPOSIX) {
     parsed.type = kPOSIX;
+    fs_ctx->posix_stats.fopen++;
     f = posix_fopen(ok ? parsed.path : fname, modes);
     if (f == NULL) {
       return NULL;
     }
   } else {
+    fs_ctx->pdlfs_stats.fopen++;
     f = pdlfs_fopen(parsed.path, modes);
     if (f == NULL) {
       return NULL;
@@ -365,103 +405,130 @@ FILE* fopen(const char* fname, const char* modes) {
 }
 
 size_t fread(void* ptr, size_t sz, size_t n, FILE* file) {
-  FileType type;
-  if (__check_file(file, &type)) {
-    if (type == kPDLFS) {
-      return pdlfs_fread(ptr, sz, n, file);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  return posix_fread(ptr, sz, n, file);
+  FileType type;
+  if (__check_file(file, &type) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.fread++;
+    return pdlfs_fread(ptr, sz, n, file);
+  } else {
+    fs_ctx->posix_stats.fread++;
+    return posix_fread(ptr, sz, n, file);
+  }
 }
 
 size_t fwrite(const void* ptr, size_t sz, size_t n, FILE* file) {
-  FileType type;
-  if (__check_file(file, &type)) {
-    if (type == kPDLFS) {
-      return pdlfs_fwrite(ptr, sz, n, file);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  return posix_fwrite(ptr, sz, n, file);
+  FileType type;
+  if (__check_file(file, &type) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.fwrite++;
+    return pdlfs_fwrite(ptr, sz, n, file);
+  } else {
+    fs_ctx->posix_stats.fwrite++;
+    return posix_fwrite(ptr, sz, n, file);
+  }
 }
 
 int fseek(FILE* file, long int off, int whence) {
-  FileType type;
-  if (__check_file(file, &type)) {
-    if (type == kPDLFS) {
-      return pdlfs_fseek(file, off, whence);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  return posix_fseek(file, off, whence);
+  FileType type;
+  if (__check_file(file, &type) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.fseek++;
+    return pdlfs_fseek(file, off, whence);
+  } else {
+    fs_ctx->posix_stats.fseek++;
+    return posix_fseek(file, off, whence);
+  }
 }
 
 long int ftell(FILE* file) {
-  FileType type;
-  if (__check_file(file, &type)) {
-    if (type == kPDLFS) {
-      return pdlfs_ftell(file);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  return posix_ftell(file);
+  FileType type;
+  if (__check_file(file, &type) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.ftell++;
+    return pdlfs_ftell(file);
+  } else {
+    fs_ctx->posix_stats.ftell++;
+    return posix_ftell(file);
+  }
 }
 
 int fflush(FILE* file) {
-  FileType type;
-  if (__check_file(file, &type)) {
-    if (type == kPDLFS) {
-      return pdlfs_fflush(file);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  return posix_fflush(file);
+  FileType type;
+  if (__check_file(file, &type) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.fflush++;
+    return pdlfs_fflush(file);
+  } else {
+    fs_ctx->posix_stats.fflush++;
+    return posix_fflush(file);
+  }
 }
 
 int fclose(FILE* file) {
-  bool remove_file = true;
-  FileType type;
-  if (__check_file(file, &type, remove_file)) {
-    if (type == kPDLFS) {
-      return pdlfs_fclose(file);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  return posix_fclose(file);
+  FileType type;
+  const bool remove_file = true;
+  if (__check_file(file, &type, remove_file) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.fclose++;
+    return pdlfs_fclose(file);
+  } else {
+    fs_ctx->posix_stats.fclose++;
+    return posix_fclose(file);
+  }
 }
 
 void clearerr(FILE* file) {
-  FileType type;
-  if (__check_file(file, &type)) {
-    if (type == kPDLFS) {
-      pdlfs_clearerr(file);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  posix_clearerr(file);
+  FileType type;
+  if (__check_file(file, &type) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.clearerr++;
+    pdlfs_clearerr(file);
+  } else {
+    fs_ctx->posix_stats.clearerr++;
+    posix_clearerr(file);
+  }
 }
 
 int ferror(FILE* file) __THROW {
-  FileType type;
-  if (__check_file(file, &type)) {
-    if (type == kPDLFS) {
-      return pdlfs_ferror(file);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  return posix_ferror(file);
+  FileType type;
+  if (__check_file(file, &type) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.ferror++;
+    return pdlfs_ferror(file);
+  } else {
+    fs_ctx->posix_stats.ferror++;
+    return posix_ferror(file);
+  }
 }
 
 int feof(FILE* file) __THROW {
-  FileType type;
-  if (__check_file(file, &type)) {
-    if (type == kPDLFS) {
-      return pdlfs_feof(file);
-    }
+  if (fs_ctx == NULL) {
+    pthread_once(&once, &__init_ctx);
   }
-
-  return posix_feof(file);
+  FileType type;
+  if (__check_file(file, &type) && type == kPDLFS) {
+    fs_ctx->pdlfs_stats.feof++;
+    return pdlfs_feof(file);
+  } else {
+    fs_ctx->posix_stats.feof++;
+    return posix_feof(file);
+  }
 }
 
 }  // extern C

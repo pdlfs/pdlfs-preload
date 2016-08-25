@@ -20,14 +20,14 @@ OPT ?= -g2
 
 OUTDIR=build
 
-CFLAGS = -DGLOG -I./include $(OPT)
-CXXFLAGS = -DGLOG -I./include $(OPT)
+CFLAGS = -DGLOG -DHAVE_ATOMIC -std=c++0x -I./include $(OPT)
+CXXFLAGS = -DGLOG -DHAVE_ATOMIC -std=c++0x -I./include $(OPT)
 
 default: all
 
 all: $(OUTDIR)/libpdlfs-preload.so $(OUTDIR)/libpdlfs-preload-posix.so $(OUTDIR)/libpdlfs-preload-deltafs.so
 
-TEST_LD_PRELOAD=$(OUTDIR)/libpdlfs-preload.so $(OUTDIR)/libpdlfs-preload-posix.so
+TEST_LD_PRELOAD=$(OUTDIR)/libpdlfs-preload.so $(OUTDIR)/libpdlfs-preload-posix.so libglog.so
 
 check: all $(OUTDIR)/preload_test
 	env LD_PRELOAD="$(TEST_LD_PRELOAD)" $(OUTDIR)/preload_test

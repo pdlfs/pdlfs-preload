@@ -27,16 +27,15 @@ struct Context {
   void Init() {
     std::string path = pdlfs_root;
     posix_mkdir(path.c_str(), kDirMode);
-    path += "/.pdlfs";  // XXX: marker directory
-    posix_mkdir(path.c_str(), kDirMode);
   }
 
   explicit Context() {
-    const char* env = getenv("PDLFS_ROOT");
+    const char* env = getenv("PDLFS_Root");
     if (env == NULL) env = DEFAULT_PDLFS_ROOT;
     std::string root = env;
     if (root.empty()) root = DEFAULT_PDLFS_ROOT;
     assert(root[0] == '/');
+    assert(root.size() > 1);
     while (root.length() != 1 && root[root.size() - 1] == '/') {
       root.resize(root.size() - 1);
     }

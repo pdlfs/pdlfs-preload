@@ -38,8 +38,13 @@
 namespace {
 
 struct Logger {
-  Logger(int id, FILE* f = stderr) : id(id), file(f) {}
   void Logv(const char* fmt, va_list ap);
+  Logger(int id, FILE* f = stderr) : id(id), file(f) {}
+  ~Logger() {
+    if (file != stderr) {
+      posix_fclose(file);
+    }
+  }
   FILE* file;
   int id;
 };
@@ -127,7 +132,8 @@ struct Context {
 #endif
     memset(&posix_stats, 0, sizeof(CallStats));
     memset(&pdlfs_stats, 0, sizeof(CallStats));
-    logger = new Logger(rank);
+    FILE* f = posix_fopen("/tmp/pdlfs_preload.log", "w");
+    logger = new Logger(rank, f);
     const char* env = getenv("PDLFS_ROOT");
     if (env == NULL) {
       env = DEFAULT_PDLFS_ROOT;
@@ -142,6 +148,12 @@ struct Context {
       root.resize(root.size() - 1);
     }
     pdlfs_root = root;
+  }
+
+  ~Context() {
+    if (logger != NULL) {
+      delete logger;
+    }
   }
 };
 }  // namespace
@@ -169,6 +181,12 @@ static void Trace(const char* fmt, ...) {
 
 static void LogStats(const char* prefix, const CallStats& stats) {
   Logv("num %s_mkdir\t%d\n", prefix, static_cast<int>(stats.mkdir));
+  Logv("num %s_open\t%d\n", prefix, static_cast<int>(stats.open));
+  Logv("num %s_pread\t%d\n", prefix, static_cast<int>(stats.pread));
+  Logv("num %s_pwrite\t%d\n", prefix, static_cast<int>(stats.pwrite));
+  Logv("num %s_read\t%d\n", prefix, static_cast<int>(stats.read));
+  Logv("num %s_write\t%d\n", prefix, static_cast<int>(stats.write));
+  Logv("num %s_close\t%d\n", prefix, static_cast<int>(stats.close));
   Logv("num %s_fopen\t%d\n", prefix, static_cast<int>(stats.fopen));
   Logv("num %s_fread\t%d\n", prefix, static_cast<int>(stats.fread));
   Logv("num %s_fwrite\t%d\n", prefix, static_cast<int>(stats.fwrite));
@@ -176,9 +194,10 @@ static void LogStats(const char* prefix, const CallStats& stats) {
   Logv("num %s_fclose\t%d\n", prefix, static_cast<int>(stats.fclose));
 }
 
-static void __print_stats() {
+static void __do_at_exit() {
   LogStats("pdlfs", fs_ctx->pdlfs_stats);
   LogStats("posix", fs_ctx->posix_stats);
+  delete fs_ctx;
 }
 
 static void __init_ctx() {
@@ -193,7 +212,7 @@ static void __init_ctx() {
 #endif
   Context* ctx = new Context;
   fs_ctx = ctx;
-  atexit(&__print_stats);
+  atexit(&__do_at_exit);
 }
 
 static void MutexLock() {
@@ -317,10 +336,13 @@ int open(const char* path, int oflags, ...) {
   bool ok = fs_ctx->ParsePath(path, &parsed);
   if (!ok || parsed.type == kPOSIX) {
     parsed.type = kPOSIX;
+    const char* p = ok ? parsed.path : path;
     fs_ctx->posix_stats.open++;
-    __fd = posix_open(ok ? parsed.path : path, oflags, mode);
+    Trace("posix_open %s", p);
+    __fd = posix_open(p, oflags, mode);
   } else {
     fs_ctx->pdlfs_stats.open++;
+    Trace("pdlfs_open %s", parsed.path);
     __fd = pdlfs_open(parsed.path, oflags, mode, &buf);
   }
   if (__fd == -1) {

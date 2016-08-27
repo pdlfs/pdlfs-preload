@@ -135,7 +135,7 @@ struct Context {
     memset(&pdlfs_stats, 0, sizeof(CallStats));
     FILE* f = posix_fopen("/tmp/pdlfs_preload.log", "w");
     logger = new Logger(rank, f);
-    const char* env = getenv("PDLFS_ROOT");
+    const char* env = getenv("PDLFS_Root");
     if (env == NULL) {
       env = DEFAULT_PDLFS_ROOT;
     }
@@ -143,7 +143,14 @@ struct Context {
     if (root.empty()) {
       root = DEFAULT_PDLFS_ROOT;
     }
-    assert(root[0] == '/');
+    if (root[0] != '/') {
+      fprintf(stderr, "PDLFS_Root must be an absolute path\n");
+      abort();
+    }
+    if (root.size() == 1) {
+      fprintf(stderr, "PDLFS_Root cannot be the root\n");
+      abort();
+    }
     // Removing tailing slashes
     while (root.length() != 1 && root[root.size() - 1] == '/') {
       root.resize(root.size() - 1);

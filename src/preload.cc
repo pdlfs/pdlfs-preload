@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -20,16 +21,61 @@
 #include <string>
 
 #include "buffered_io.h"
-#include "monutil.h"
 #include "pdlfs-preload/pdlfs_api.h"
 #include "posix_api.h"
 #include "preload.h"
 
+#ifdef HAVE_MPI
+#include <mpi/mpi.h>
+#endif
+#ifdef HAVE_ATOMIC
+#include <atomic>
+#endif
 #ifdef GLOG
 #include <glog/logging.h>
 #endif
 
 namespace {
+
+struct Logger {
+  Logger(int id, FILE* f = stderr) : id(id), file(f) {}
+  void Logv(const char* fmt, va_list ap);
+  FILE* file;
+  int id;
+};
+
+void Logger::Logv(const char* fmt, va_list ap) {
+  char tmp[500];
+  vsnprintf(tmp, sizeof(tmp), fmt, ap);
+  fprintf(file, "[%d] %s", id, tmp);
+}
+
+struct CallStats {
+#ifdef HAVE_ATOMIC
+  typedef std::atomic_int ctr_t;
+#else
+  typedef int ctr_t;
+#endif
+  ctr_t mkdir;
+  ctr_t open;
+  ctr_t creat;
+  ctr_t fstat;
+  ctr_t pread;
+  ctr_t read;
+  ctr_t pwrite;
+  ctr_t write;
+  ctr_t close;
+  ctr_t feof;
+  ctr_t ferror;
+  ctr_t clearerr;
+  ctr_t fopen;
+  ctr_t fread;
+  ctr_t fwrite;
+  ctr_t fseek;
+  ctr_t ftell;
+  ctr_t fflush;
+  ctr_t fclose;
+};
 
 enum FileType { kPDLFS, kPOSIX };
 
@@ -39,9 +85,9 @@ struct ParsedPath {
 };
 
 struct Context {
-  __MonStats posix_stats;
-  __MonStats pdlfs_stats;
-
+  CallStats posix_stats;
+  CallStats pdlfs_stats;
+  Logger* logger;
   std::string pdlfs_root;
   std::map<int, int> fd_map;
   std::map<FILE*, FileType> files;
@@ -71,6 +117,17 @@ struct Context {
 
   // File descriptor 0, 1, 2 are reserved for stdin, stdout, and stderr
   Context() : fd(2) {
+#ifdef HAVE_MPI
+    int rank = -1;
+    int mpi;
+    MPI_Initialized(&mpi);
+    if (mpi) {
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    }
+#endif
+    memset(&posix_stats, 0, sizeof(CallStats));
+    memset(&pdlfs_stats, 0, sizeof(CallStats));
+    logger = new Logger(rank);
     const char* env = getenv("PDLFS_ROOT");
     if (env == NULL) {
       env = DEFAULT_PDLFS_ROOT;
@@ -80,8 +137,6 @@ struct Context {
       root = DEFAULT_PDLFS_ROOT;
     }
     assert(root[0] == '/');
-    memset(&posix_stats, 0, sizeof(__MonStats));
-    memset(&pdlfs_stats, 0, sizeof(__MonStats));
     // Removing tailing slashes
     while (root.length() != 1 && root[root.size() - 1] == '/') {
       root.resize(root.size() - 1);
@@ -96,18 +151,32 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_once_t once = PTHREAD_ONCE_INIT;
 static Context* fs_ctx = NULL;
 
-static void PrintStats(const char* prefix, const __MonStats& stats) {
-  fprintf(stderr, "%s] num mkdir\t%d\n", prefix, (int)stats.mkdir);
-  fprintf(stderr, "%s] num fopen\t%d\n", prefix, (int)stats.fopen);
-  fprintf(stderr, "%s] num fread\t%d\n", prefix, (int)stats.fread);
-  fprintf(stderr, "%s] num fwrite\t%d\n", prefix, (int)stats.fwrite);
-  fprintf(stderr, "%s] num fflush\t%d\n", prefix, (int)stats.fflush);
-  fprintf(stderr, "%s] num fclose\t%d\n", prefix, (int)stats.fclose);
+static void Logv(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  fs_ctx->logger->Logv(fmt, ap);
+  va_end(ap);
+}
+
+static void Trace(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  fs_ctx->logger->Logv(fmt, ap);
+  va_end(ap);
+}
+
+static void LogStats(const char* prefix, const CallStats& stats) {
+  Logv("num %s_mkdir\t%d\n", prefix, static_cast<int>(stats.mkdir));
+  Logv("num %s_fopen\t%d\n", prefix, static_cast<int>(stats.fopen));
+  Logv("num %s_fread\t%d\n", prefix, static_cast<int>(stats.fread));
+  Logv("num %s_fwrite\t%d\n", prefix, static_cast<int>(stats.fwrite));
+  Logv("num %s_fflush\t%d\n", prefix, static_cast<int>(stats.fflush));
+  Logv("num %s_fclose\t%d\n", prefix, static_cast<int>(stats.fclose));
 }
 
 static void __print_stats() {
-  PrintStats("pdlfs", fs_ctx->pdlfs_stats);
-  PrintStats("posix", fs_ctx->posix_stats);
+  LogStats("pdlfs", fs_ctx->pdlfs_stats);
+  LogStats("posix", fs_ctx->posix_stats);
 }
 
 static void __init_ctx() {
@@ -205,10 +274,13 @@ int mkdir(const char* path, mode_t mode) __THROW {
   bool ok = fs_ctx->ParsePath(path, &parsed);
   if (!ok || parsed.type == kPOSIX) {
     parsed.type = kPOSIX;
+    const char* p = ok ? parsed.path : path;
     fs_ctx->posix_stats.mkdir++;
-    r = posix_mkdir(ok ? parsed.path : path, mode);
+    Trace("posix_mkdir %s", p);
+    r = posix_mkdir(p, mode);
   } else {
     fs_ctx->pdlfs_stats.mkdir++;
+    Trace("pdlfs_mkdir %s", parsed.path);
     r = pdlfs_mkdir(parsed.path, mode);
   }
 
@@ -396,13 +468,16 @@ FILE* fopen(const char* fname, const char* modes) {
   bool ok = fs_ctx->ParsePath(fname, &parsed);
   if (!ok || parsed.type == kPOSIX) {
     parsed.type = kPOSIX;
+    const char* p = ok ? parsed.path : fname;
     fs_ctx->posix_stats.fopen++;
-    f = posix_fopen(ok ? parsed.path : fname, modes);
+    Trace("posix_fopen %s", p);
+    f = posix_fopen(p, modes);
     if (f == NULL) {
       return NULL;
     }
   } else {
     fs_ctx->pdlfs_stats.fopen++;
+    Trace("pdlfs_fopen %s", parsed.path);
     f = pdlfs_fopen(parsed.path, modes);
     if (f == NULL) {
       return NULL;

@@ -20,8 +20,10 @@ OPT ?= -g2
 
 OUTDIR=build
 
-CFLAGS = -DGLOG -DHAVE_ATOMIC -std=c++0x -I./include $(OPT)
-CXXFLAGS = -DGLOG -DHAVE_ATOMIC -std=c++0x -I./include $(OPT)
+CFLAGS = -DGLOG -DHAVE_MPI -I./include $(OPT)
+CXXFLAGS = -DGLOG -DHAVE_MPI -std=c++0x -I./include $(OPT)
+CXX=mpicxx
+CC=mpicc
 
 default: all
 

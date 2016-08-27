@@ -16,10 +16,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#ifdef GLOG
-#include <glog/logging.h>
-#endif
-
 namespace {
 
 struct DeltafsAPI {
@@ -60,17 +56,6 @@ static pthread_once_t once = PTHREAD_ONCE_INIT;
 static DeltafsAPI* deltafs_api = NULL;
 
 static void __init_deltafs_api() {
-#ifdef GLOG
-  int verbose = 0;
-  const char* p = getenv("DELTAFS_Verbose");
-  if (p != NULL) {
-    verbose = atoi(p);
-  }
-  FLAGS_v = verbose;
-  FLAGS_logtostderr = true;
-  google::InitGoogleLogging("deltafs");
-  google::InstallFailureSignalHandler();
-#endif
   DeltafsAPI* api = new DeltafsAPI;
   deltafs_api = api;
 }

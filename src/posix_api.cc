@@ -16,10 +16,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#ifdef GLOG
-#include <glog/logging.h>
-#endif
-
 namespace {
 
 struct PosixAPI {
@@ -84,11 +80,6 @@ static pthread_once_t once = PTHREAD_ONCE_INIT;
 static PosixAPI* posix_api = NULL;
 
 static void __init_posix_api() {
-#ifdef GLOG
-  FLAGS_logtostderr = true;
-  google::InitGoogleLogging("pdlfs");
-  google::InstallFailureSignalHandler();
-#endif
   PosixAPI* api = new PosixAPI;
   posix_api = api;
 }

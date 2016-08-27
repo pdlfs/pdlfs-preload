@@ -25,6 +25,10 @@
 #include "posix_api.h"
 #include "preload.h"
 
+#ifdef GLOG
+#include <glog/logging.h>
+#endif
+
 namespace {
 
 enum FileType { kPDLFS, kPOSIX };
@@ -92,21 +96,30 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_once_t once = PTHREAD_ONCE_INIT;
 static Context* fs_ctx = NULL;
 
-static void PrintStats(const __MonStats& stats) {
-  fprintf(stderr, "num mkdir -> %d\n", (int)stats.mkdir);
-  fprintf(stderr, "num fopen -> %d\n", (int)stats.fopen);
-  fprintf(stderr, "num fread -> %d\n", (int)stats.fread);
-  fprintf(stderr, "num fwrite -> %d\n", (int)stats.fwrite);
-  fprintf(stderr, "num fflush -> %d\n", (int)stats.fflush);
-  fprintf(stderr, "num fclose -> %d\n", (int)stats.fclose);
+static void PrintStats(const char* prefix, const __MonStats& stats) {
+  fprintf(stderr, "%s] num mkdir\t%d\n", prefix, (int)stats.mkdir);
+  fprintf(stderr, "%s] num fopen\t%d\n", prefix, (int)stats.fopen);
+  fprintf(stderr, "%s] num fread\t%d\n", prefix, (int)stats.fread);
+  fprintf(stderr, "%s] num fwrite\t%d\n", prefix, (int)stats.fwrite);
+  fprintf(stderr, "%s] num fflush\t%d\n", prefix, (int)stats.fflush);
+  fprintf(stderr, "%s] num fclose\t%d\n", prefix, (int)stats.fclose);
 }
 
 static void __print_stats() {
-  fprintf(stderr, "== PDLFS stats\n");
-  PrintStats(fs_ctx->pdlfs_stats);
+  PrintStats("pdlfs", fs_ctx->pdlfs_stats);
+  PrintStats("posix", fs_ctx->posix_stats);
 }
 
 static void __init_ctx() {
+#ifdef GLOG
+  int verbose = 0;
+  const char* p = getenv("PDLFS_Verbose");
+  if (p != NULL) verbose = atoi(p);
+  FLAGS_v = verbose;
+  FLAGS_logtostderr = true;
+  google::InitGoogleLogging("pdlfs");
+  google::InstallFailureSignalHandler();
+#endif
   Context* ctx = new Context;
   fs_ctx = ctx;
   atexit(&__print_stats);

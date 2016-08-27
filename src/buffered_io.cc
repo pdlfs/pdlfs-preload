@@ -21,7 +21,13 @@ namespace {
 class BufferedFile {
  public:
   BufferedFile(int fd, off_t size)
-      : err_(false), eof_(false), buf_pos_(0), off_(0), size_(size), fd_(fd) {}
+      : err_(false),
+        eof_(false),
+        append_(false),
+        buf_pos_(0),
+        off_(0),
+        size_(size),
+        fd_(fd) {}
 
   ~BufferedFile() {}
 
@@ -30,6 +36,11 @@ class BufferedFile {
   void Seek(off_t off) {
     off_ = off;
     eof_ = false;
+  }
+
+  void SetAppend() {
+    buf_pos_ = size_;
+    append_ = true;
   }
 
   // Return the number of bytes read which is less then nbytes
@@ -52,9 +63,20 @@ class BufferedFile {
     return 0;
   }
 
+  // Return the number of bytes written.
+  size_t Append(const void* buf, size_t nbytes) {
+    buf_.append(reinterpret_cast<const char*>(buf), nbytes);
+    off_t end = buf_pos_ + buf_.size();
+    if (end > size_) {
+      size_ = end;
+    }
+    return nbytes;
+  }
+
   // Return the number of bytes written or 0 on errors.
   size_t Write(const void* buf, size_t nbytes) {
     if (err_) return 0;
+    if (append_) return Append(buf, nbytes);
     if (buf_.empty()) {
       buf_pos_ = off_;
     }
@@ -114,6 +136,7 @@ class BufferedFile {
   enum { kMaxBufSize = 4096 };
   bool err_;
   bool eof_;
+  bool append_;
   std::string buf_;
   off_t buf_pos_;
   off_t off_;
@@ -136,9 +159,9 @@ static int __convert_to_flags(std::string modes) {
   } else if (modes == "w+") {
     return O_CREAT | O_RDWR | O_TRUNC;
   } else if (modes == "a") {
-    return O_CREAT | O_WRONLY | O_APPEND;
+    return O_CREAT | O_WRONLY;
   } else if (modes == "a+") {
-    return O_CREAT | O_RDWR | O_APPEND;
+    return O_CREAT | O_RDWR;
   } else {
     return -1;
   }
@@ -159,6 +182,9 @@ FILE* pdlfs_fopen(const char* fname, const char* modes) {
   int fd = pdlfs_open(fname, flags, DEFFILEMODE, &stat_buf);
   if (fd != -1) {
     bf = new BufferedFile(fd, stat_buf.st_size);
+    if (modes[0] == 'a') {
+      bf->SetAppend();
+    }
     file = reinterpret_cast<FILE*>(bf);
   }
 

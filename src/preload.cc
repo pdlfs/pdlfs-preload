@@ -117,8 +117,8 @@ struct Context {
 
   // File descriptor 0, 1, 2 are reserved for stdin, stdout, and stderr
   Context() : fd(2) {
-#ifdef HAVE_MPI
     int rank = -1;
+#ifdef HAVE_MPI
     int mpi;
     MPI_Initialized(&mpi);
     if (mpi) {
@@ -276,11 +276,11 @@ int mkdir(const char* path, mode_t mode) __THROW {
     parsed.type = kPOSIX;
     const char* p = ok ? parsed.path : path;
     fs_ctx->posix_stats.mkdir++;
-    Trace("posix_mkdir %s", p);
+    Trace("posix_mkdir %s\n", p);
     r = posix_mkdir(p, mode);
   } else {
     fs_ctx->pdlfs_stats.mkdir++;
-    Trace("pdlfs_mkdir %s", parsed.path);
+    Trace("pdlfs_mkdir %s\n", parsed.path);
     r = pdlfs_mkdir(parsed.path, mode);
   }
 
@@ -470,14 +470,14 @@ FILE* fopen(const char* fname, const char* modes) {
     parsed.type = kPOSIX;
     const char* p = ok ? parsed.path : fname;
     fs_ctx->posix_stats.fopen++;
-    Trace("posix_fopen %s", p);
+    Trace("posix_fopen %s\n", p);
     f = posix_fopen(p, modes);
     if (f == NULL) {
       return NULL;
     }
   } else {
     fs_ctx->pdlfs_stats.fopen++;
-    Trace("pdlfs_fopen %s", parsed.path);
+    Trace("pdlfs_fopen %s\n", parsed.path);
     f = pdlfs_fopen(parsed.path, modes);
     if (f == NULL) {
       return NULL;

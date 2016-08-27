@@ -53,6 +53,7 @@ void Logger::Logv(const char* fmt, va_list ap) {
   char tmp[500];
   vsnprintf(tmp, sizeof(tmp), fmt, ap);
   fprintf(file, "[%d] %s", id, tmp);
+  posix_fflush(file);
 }
 
 struct CallStats {

@@ -339,11 +339,11 @@ int open(const char* path, int oflags, ...) {
     parsed.type = kPOSIX;
     const char* p = ok ? parsed.path : path;
     fs_ctx->posix_stats.open++;
-    Trace("posix_open %s", p);
+    Trace("posix_open %s\n", p);
     __fd = posix_open(p, oflags, mode);
   } else {
     fs_ctx->pdlfs_stats.open++;
-    Trace("pdlfs_open %s", parsed.path);
+    Trace("pdlfs_open %s\n", parsed.path);
     __fd = pdlfs_open(parsed.path, oflags, mode, &buf);
   }
   if (__fd == -1) {

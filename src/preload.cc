@@ -159,10 +159,12 @@ static void Logv(const char* fmt, ...) {
 }
 
 static void Trace(const char* fmt, ...) {
+#ifndef NOTRACE
   va_list ap;
   va_start(ap, fmt);
   fs_ctx->logger->Logv(fmt, ap);
   va_end(ap);
+#endif
 }
 
 static void LogStats(const char* prefix, const CallStats& stats) {
@@ -513,11 +515,11 @@ size_t fwrite(const void* ptr, size_t sz, size_t n, FILE* file) {
   FileType type;
   if (__check_file(file, &type) && type == kPDLFS) {
     fs_ctx->pdlfs_stats.fwrite++;
-    Trace("pdlfs_fwrite %llu\n", (long long unsigned)(sz * n));
+    // Trace("pdlfs_fwrite %llu\n", (long long unsigned)(sz * n));
     return pdlfs_fwrite(ptr, sz, n, file);
   } else {
     fs_ctx->posix_stats.fwrite++;
-    Trace("posix_fwrite %llu\n", (long long unsigned)(sz * n));
+    // Trace("posix_fwrite %llu\n", (long long unsigned)(sz * n));
     return posix_fwrite(ptr, sz, n, file);
   }
 }

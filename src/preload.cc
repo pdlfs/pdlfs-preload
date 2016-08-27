@@ -513,9 +513,11 @@ size_t fwrite(const void* ptr, size_t sz, size_t n, FILE* file) {
   FileType type;
   if (__check_file(file, &type) && type == kPDLFS) {
     fs_ctx->pdlfs_stats.fwrite++;
+    Trace("pdlfs_fwrite %llu\n", (long long unsigned)(sz * n));
     return pdlfs_fwrite(ptr, sz, n, file);
   } else {
     fs_ctx->posix_stats.fwrite++;
+    Trace("posix_fwrite %llu\n", (long long unsigned)(sz * n));
     return posix_fwrite(ptr, sz, n, file);
   }
 }

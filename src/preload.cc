@@ -442,8 +442,12 @@ ssize_t pwrite(int fd, const void* buf, size_t sz, off_t off) {
   FileType type;
   int __fd;
   if (__check_file_by_fd(fd, &type, &__fd) && type == kPDLFS) {
+#ifndef NOWRITE
     fs_ctx->pdlfs_stats.pwrite++;
     return pdlfs_pwrite(__fd, buf, sz, off);
+#else
+    return sz;
+#endif
   } else {
     fs_ctx->posix_stats.pwrite++;
     return posix_pwrite(fd, buf, sz, off);
@@ -457,8 +461,12 @@ ssize_t write(int fd, const void* buf, size_t sz) {
   FileType type;
   int __fd;
   if (__check_file_by_fd(fd, &type, &__fd) && type == kPDLFS) {
+#ifndef NOWRITE
     fs_ctx->pdlfs_stats.write++;
     return pdlfs_write(__fd, buf, sz);
+#else
+    return sz;
+#endif
   } else {
     fs_ctx->posix_stats.write++;
     return posix_write(fd, buf, sz);
@@ -544,9 +552,13 @@ size_t fwrite(const void* ptr, size_t sz, size_t n, FILE* file) {
   }
   FileType type;
   if (__check_file(file, &type) && type == kPDLFS) {
+#ifndef NOWRITE
     fs_ctx->pdlfs_stats.fwrite++;
     // Trace("pdlfs_fwrite %llu\n", (long long unsigned)(sz * n));
     return pdlfs_fwrite(ptr, sz, n, file);
+#else
+    return n;
+#endif
   } else {
     fs_ctx->posix_stats.fwrite++;
     // Trace("posix_fwrite %llu\n", (long long unsigned)(sz * n));

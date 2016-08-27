@@ -130,7 +130,11 @@ class BufferedFile {
     if (r == 0) {
       r = pdlfs_close(fd_);
     }
-    return r == 0 ? 0 : EOF;
+    if (r != 0) {
+      return EOF;
+    }
+
+    return 0;
   }
 
   enum { kMaxBufSize = 4096 };
@@ -258,9 +262,9 @@ int pdlfs_fclose(FILE* stream) {
     return -1;
   } else {
     BufferedFile* file = buffered_file(stream);
-    file->Close();
+    int r = file->Close();
     delete file;
-    return 0;
+    return r;
   }
 }
 

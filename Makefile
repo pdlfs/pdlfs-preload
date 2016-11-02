@@ -20,8 +20,15 @@ OPT ?= -g2
 
 OUTDIR=build
 
-CFLAGS = -DGLOG -DHAVE_MPI -DNOTRACE -DNDEBUG -I./include $(OPT)
-CXXFLAGS = -DGLOG -DHAVE_MPI -DNOTRACE -DNDEBUG -std=c++0x -I./include $(OPT)
+LFLAGS=
+IFLAGS=
+ifdef PREFIX
+	LFLAGS += -L$(PREFIX)/lib
+	IFLAGS += -I$(PREFIX)/include
+endif
+
+CFLAGS = -DGLOG -DHAVE_MPI -DNOTRACE -DNDEBUG -I./include $(OPT) $(IFLAGS)
+CXXFLAGS = -DGLOG -DHAVE_MPI -DNOTRACE -DNDEBUG -std=c++0x -I./include $(OPT) $(IFLAGS)
 CXX=mpicxx
 CC=mpicc
 
@@ -47,16 +54,16 @@ $(OUTDIR)/src: | $(OUTDIR)
 DIRS: $(OUTDIR)/src
 
 $(OUTDIR)/libpdlfs-preload-deltafs.so: DIRS $(OUTDIR)/src/pdlfs_api_deltafs.o $(OUTDIR)/src/deltafs_api.o
-	$(CXX) -pthread -shared $(OUTDIR)/src/pdlfs_api_deltafs.o $(OUTDIR)/src/deltafs_api.o -o $@ -lglog
+	$(CXX) $(LFLAGS) -pthread -shared $(OUTDIR)/src/pdlfs_api_deltafs.o $(OUTDIR)/src/deltafs_api.o -o $@ -lglog
 
 $(OUTDIR)/libpdlfs-preload-posix.so: DIRS $(OUTDIR)/src/pdlfs_api_posix.o
-	$(CXX) -pthread -shared $(OUTDIR)/src/pdlfs_api_posix.o -o $@ -lglog
+	$(CXX) $(LFLAGS) -pthread -shared $(OUTDIR)/src/pdlfs_api_posix.o -o $@ -lglog
 
 $(OUTDIR)/libpdlfs-preload.so: DIRS $(OUTDIR)/src/preload.o $(OUTDIR)/src/posix_api.o $(OUTDIR)/src/buffered_io.o
-	$(CXX) -pthread -shared $(OUTDIR)/src/preload.o $(OUTDIR)/src/posix_api.o $(OUTDIR)/src/buffered_io.o -o $@ -ldl
+	$(CXX) $(LFLAGS) -pthread -shared $(OUTDIR)/src/preload.o $(OUTDIR)/src/posix_api.o $(OUTDIR)/src/buffered_io.o -o $@ -ldl
 
 $(OUTDIR)/preload_test: DIRS
-	$(CXX) -pthread $(CXXFLAGS) src/preload_test.cc -o $@
+	$(CXX) $(LFLAGS) -pthread $(CXXFLAGS) src/preload_test.cc -o $@
 
 $(OUTDIR)/%.o: %.cc
 	$(CXX) $(CXXFLAGS) -fPIC -c $< -o $@
